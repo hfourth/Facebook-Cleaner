@@ -1,9 +1,9 @@
-require 'mechanize'
-require 'pp'
+%w{yaml mechanize pp}.each{|l| require l}
 
-module Facebook
-  VERSION = "1.5"
+class Facebook
+  VERSION = "1.6"
   MOBILE_URL = "http://m.facebook.com/"
+<<<<<<< HEAD
   SLEEP_TIME = 2 # Conservative?
   USER_AGENT = "iPhone" # Why the hell not?
   # For future (?) localisation 
@@ -140,66 +140,138 @@ module Facebook
           f.email = @email
           f.pass = @password
         end.submit
-      end
-      @home
-    end # get_home
-    
-    def get_profile
-      sleep(SLEEP_TIME)
-      @profile = @a.click(@home.link_with(:text => STRINGS[:profile]))
-      @profile
-    end # get_profile
-    
-    def get_inbox
-      sleep(SLEEP_TIME)
-      inbox = @a.click(@home.link_with(:text => STRINGS[:inbox]))
-      inbox
-    end # get_inbox
-    
-    def get_notes
-      @profile = get_profile if @profile == nil # No update needed if we already have it
-      sleep(SLEEP_TIME)
-      notes = @a.click(@profile.link_with(:text => STRINGS[:notes]))
-      notes
-    end # get_notes
-    
-    def get_my_albums
-      @profile = get_profile if @profile == nil # No update needed if we already have it
-      sleep(SLEEP_TIME)
-      my_albums = @a.click(@profile.link_with(:text => STRINGS[:photo_albums]))
-    end # get_my_albums
-    
-    def get_past_events
-      sleep(SLEEP_TIME) if @events == nil
-      @events = @a.click(@home.link_with(:text => STRINGS[:events])) if @events == nil
-      sleep(SLEEP_TIME)
-      past_events = @a.click(@events.link_with(:text => STRINGS[:past_events]))
-      past_events
-    end # get_past_events
-    
-    def unlike_and_delete(link, page = nil)
-      sleep(SLEEP_TIME) unless page != nil
-      page = @a.click(link) unless page != nil
-      page.links.each do |l|
-        t = l.text.strip
-        next unless t.length > 0
-        if t==STRINGS[:unlike]
-          puts "Unliking"
-          sleep(SLEEP_TIME)
-          @a.click(l)
-        elsif t==STRINGS[:delete_comment]
-          puts "Deleting comment"
-          remove(l)
-        end
-      end 
-    end # unlike_and_delete
-    
-    def remove(link)
-      sleep(SLEEP_TIME)
-      remove_confirm = @a.click(link)
-      sleep(SLEEP_TIME)
-      remove_confirm.forms.first.click_button
-    end # remove
-    
+=======
+  STRINGS = YAML.load_file('lib/links.en_us.yaml') # For future (?) localisation
+  SLEEP_TIME_INTERVAL = [1.55, 2.45] # Conservative?
+  USER_AGENT = "Opera/9.50 (J2ME/MIDP; Opera Mini/4.0.10031/298; U; en)"
+  DEBUG = true
+  attr_accessor :email, :password, :config
+  
+  def initialize(config)
+    @config = config
+    @email = config[:email]
+    @password = config[:password]
+    @a = Mechanize.new { |agent| agent.user_agent = USER_AGENT }
+    @profile = nil
+    get_home
   end
-end # Facebook
+  
+  # private
+  
+  ## Navigation
+  
+  def get_home
+    @a.get(MOBILE_URL) do |page|
+      sleep
+      @home = page.form_with(:id => "login_form") do |f|
+        f.email = @email
+        f.pass = @password
+      end.submit
+    end
+    if @config[:change_language]
+      change_language
+      sleep
+      @home = @a.get(MOBILE_URL)
+    end
+    save_to_html_page("_home.html", @home) if DEBUG
+    @home
+  end # get_home
+  
+  def get_profile
+    sleep
+    @profile = @a.click(@home.link_with(:text => STRINGS[:profile]))
+    save_to_html_page("_profile.html", @profile) if DEBUG
+    @profile
+  end # get_profile
+  
+  def get_wall # No referrer...
+    sleep
+    @wall = @a.get(MOBILE_URL + "wall.php?refid=17")
+    save_to_html_page("_wall.html", @wall) if DEBUG
+    @wall
+  end # get_wall
+  
+  def get_bookmarks # No referrer...
+    sleep
+    @bookmarks = @a.get(MOBILE_URL + "bookmarks.php?refid=7")
+    save_to_html_page("_bookmarks.html", @bookmarks) if DEBUG
+    @bookmarks
+  end # get_bookmarks
+  
+  def change_language(lang = STRINGS[:en_us_language])
+    sleep
+    language = @a.get(MOBILE_URL + "language.php?refid=31")
+    save_to_html_page("_language.html", language) if DEBUG
+    @a.click(language.link_with(:text => lang))
+  end # change_language
+  
+  def get_inbox
+    sleep
+    inbox = @a.click(@home.link_with(:text => STRINGS[:inbox]))
+    save_to_html_page("_inbox.html", inbox) if DEBUG
+    inbox
+  end # get_inbox
+  
+  def get_notes
+    @bookmarks = get_bookmarks if @bookmarks == nil # No update needed if we already have it
+    sleep
+    notes = @a.click(@bookmarks.link_with(:text => STRINGS[:notes]))
+    my_notes = @a.click(notes.link_with(:text => STRINGS[:my_notes]))
+    save_to_html_page("_my_notes.html", my_notes) if DEBUG
+    my_notes
+  end # get_notes
+  
+  def get_my_albums
+    @profile = get_profile if @profile == nil # No update needed if we already have it
+    sleep
+    my_albums = @a.click(@profile.link_with(:text => STRINGS[:photo_albums]))
+    save_to_html_page("_my_albums.html", my_albums) if DEBUG
+    my_albums
+  end # get_my_albums
+  
+  def get_past_events
+    sleep if @events == nil
+    @events = @a.click(@home.link_with(:text => STRINGS[:events])) if @events == nil
+    sleep
+    past_events = @a.click(@events.link_with(:text => STRINGS[:past_events]))
+    past_events
+  end # get_past_events
+  
+  def unlike_and_delete(link, page = nil)
+    sleep unless page != nil
+    page = @a.click(link) unless page != nil
+    page.links.each do |l|
+      t = l.text.strip
+      next unless t.length > 0
+      if t==STRINGS[:unlike]
+        puts "Unliking"
+        sleep
+        @a.click(l)
+      elsif t==STRINGS[:delete_comment]
+        puts "Deleting comment"
+        remove(l)
+>>>>>>> Not working yet - pre 1.6
+      end
+    end 
+  end # unlike_and_delete
+  
+  def remove(link)
+    sleep
+    remove_confirm = @a.click(link)
+    sleep
+    remove_confirm.forms.first.click_button
+  end # remove
+  
+  ## Utilities
+  
+  def sleep # Sleeps at least a minimum, then a random time within the interval
+    Kernel.sleep(SLEEP_TIME_INTERVAL[0]+rand(SLEEP_TIME_INTERVAL[1]-SLEEP_TIME_INTERVAL[0]))
+  end
+  
+  def save_to_html_page(filename, object)
+    f = File.new(filename, "w")
+    f.puts(object.parser.inner_html)
+    f.close
+  end
+  
+end

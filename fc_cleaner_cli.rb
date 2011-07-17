@@ -12,47 +12,56 @@
 # Check README.md for a few more details.
 #
 
-%w{rubygems highline/import lib/facebook}.each{|l| require l}
+%w{rubygems yaml highline/import lib/facebook}.each{|l| require l}
 HighLine.track_eof = false # Bug with Mechanize
 
 abort "#{$0} [email [password]]" if ARGV.size > 2
 
 say("\nFacebook Cleaner v#{Facebook::VERSION} - Use at your own risk\n\n")
 
-case ARGV.size
-  when 0
-    email = ask("Enter your email:  ")
-    password = ask("Enter your password:  ") { |q| q.echo = "*" }
-  when 1
-    email = ARGV[0]
-    password = ask("Enter your password:  ") { |q| q.echo = "*" }
-  else
-    email = ARGV[0]
-    password = ARGV[1]
+if File.exists?("config.yaml")
+  # Note: putting your email in a config file is fine, but putting your 
+  # password isn't really... Use at you own risk
+  CONFIG = Yaml.load_file("config.yaml") 
+else
+  # Note: change_language switches the language to EN (US)
+  CONFIG = {:email => "", :password => "", :change_language => true}
 end
 
-Facebook.setup(email,password)
+case ARGV.size
+  when 0
+    CONFIG['email'] = ask("Enter your email:  ") if CONFIG['email'] == ""
+    CONFIG['password'] = ask("Enter your password:  ") { |q| q.echo = "*" } if CONFIG['password'] == ""
+  when 1
+    CONFIG['email'] = ARGV[0]
+    CONFIG['password'] = ask("Enter your password:  ") { |q| q.echo = "*" } if CONFIG['password'] == ""
+  else
+    CONFIG['email'] = ARGV[0]
+    CONFIG['password'] = ARGV[1]
+end
+
+f = Facebook.new(CONFIG)
 
 loop do
   choose do |menu|
     menu.choice :"Delete all wall items\n   (unlike and uncomment when possible)" do
-      Facebook.delete_wall_items
+      f.delete_wall_items
       say("Done!")
     end
     menu.choice :"Delete all inbox posts" do
-      Facebook.delete_inbox_items
+      f.delete_inbox_items
       say("Done!")
     end
     menu.choice :"Delete all notes" do
-      Facebook.delete_notes
+      f.delete_notes
       say("Done!")
     end
     menu.choice :"Delete all photos from albums\n   (except Profile pictures)" do
-      Facebook.delete_albums_photos
+      f.delete_albums_photos
       say("Done!")
     end
     menu.choice :"Remove invitations to past events" do
-      Facebook.delete_past_events
+      f.delete_past_events
       say("Done!")
     end
     menu.choice :"Quit" do
